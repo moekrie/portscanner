@@ -1,0 +1,97 @@
+import socket
+import threading
+import random
+import time
+from queue import Queue
+
+class PortScanner:
+    def __init__(self, target, port_range, threads=100):
+        self.target = target
+        self.port_range = port_range
+        self.threads = threads
+        self.open_ports = []
+        self.queue = Queue()
+        self.lock = threading.Lock()
+
+    def port_scan(self, port):
+        try:
+            # Create socket with timeout to avoid hanging
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            
+            # Connect to port
+            result = sock.connect_ex((self.target, port))
+            
+            if result == 0:
+                with self.lock:
+                    self.open_ports.append(port)
+            
+            sock.close()
+            
+            # Random delay between scans for stealth (0.1-0.5 seconds)
+            time.sleep(random.uniform(0.1, 0.5))
+            
+        except Exception:
+            pass
+
+    def worker(self):
+        while True:
+            try:
+                port = self.queue.get_nowait()
+                self.port_scan(port)
+                self.queue.task_done()
+            except:
+                break
+
+    def scan(self):
+        print(f"Starting scan on {self.target}...")
+        start_time = time.time()
+
+        # Fill queue with ports in random order
+        ports = list(range(self.port_range[0], self.port_range[1] + 1))
+        random.shuffle(ports)
+        for port in ports:
+            self.queue.put(port)
+
+        # Start worker threads
+        for _ in range(min(self.threads, len(ports))):
+            t = threading.Thread(target=self.worker)
+            t.daemon = True
+            t.start()
+
+        # Wait for all ports to be scanned
+        self.queue.join()
+
+        end_time = time.time()
+        print(f"\nScan completed in {end_time - start_time:.2f} seconds")
+        print(f"Open ports: {sorted(self.open_ports)}")
+
+def main():
+    # Example usage
+    target = input("Enter target IP or hostname: ")
+    
+    try:
+        # Resolve hostname to IP if needed
+        target_ip = socket.gethostbyname(target)
+        
+        port_start = int(input("Enter starting port (1-65535): "))
+        port_end = int(input("Enter ending port (1-65535): "))
+        
+        if not (1 <= port_start <= 65535 and 1 <= port_end <= 65535):
+            raise ValueError("Ports must be between 1 and 65535")
+        
+        if port_start > port_end:
+            port_start, port_end = port_end, port_start
+
+        scanner = PortScanner(target_ip, (port_start, port_end))
+        scanner.scan()
+        
+    except ValueError as e:
+        print(f"Error: {e}")
+    except socket.gaierror:
+        print("Error: Could not resolve hostname")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+if __name__ == "__main__":
+    main()
