@@ -1,11 +1,12 @@
 # portscanner
-scan port like ghost and faster
+## scan port like ghost and faster
 
 # Usage
-bash
+## bash
+
 `python scanner.py`
 
-output will like
+## output will like
 
 `Enter target IP or hostname: 192.168.1.1`
 
